@@ -32,6 +32,10 @@
 ![favorites](public/favorites.png)
 
 
+## About This Version
+
+This repository is a community-maintained continuation of the original [LYX9527/what-happen](https://github.com/LYX9527/what-happen) project. It includes modifications and extensions based on the original author's code and will continue to evolve; refer to this repository for the current version.
+
 ## Overview
 
 《What Happen》 is a comprehensive news aggregation platform that brings together information from multiple popular sources including social media, tech news, financial markets, and entertainment. Built with modern web technologies, it provides a clean, intuitive interface for staying updated with what's happening around the world.
