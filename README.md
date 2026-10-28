@@ -278,7 +278,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Changelog
 
-### Version 1.0.0(Current)
+### Version 1.1.0 (Current)
+- Continued maintenance and improvements based on the original project
 - Support for 30+ news platforms
 - Responsive design and dark mode
 - Favorites and filtering system
