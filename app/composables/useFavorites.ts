@@ -1,5 +1,6 @@
 import { ref, computed, onMounted } from 'vue'
 import type { NewsItem } from '@/types/api'
+import { toast } from 'vue-sonner'
 
 // 收藏项类型，包含额外的元数据
 export interface FavoriteItem extends NewsItem {
@@ -26,32 +27,59 @@ const FAVORITES_STORAGE_KEY = 'news-favorites'
 // 收藏列表
 const favorites = ref<FavoriteEntry[]>([])
 
-// 从本地存储加载收藏 - SSR兼容版本
+type FavoritesResponse = { uid: string, favorites: FavoriteEntry[] }
+let initialization: Promise<void> | undefined
+let pending = Promise.resolve()
+let ready = false
+const entryKey = (item: FavoriteEntry) => item.type === 'platform'
+  ? `platform:${item.platform}` : `single:${item.id}:${item.url}`
+
 const loadFavorites = () => {
-  // 只在客户端执行
-  if (process.client) {
-    try {
-      const stored = localStorage.getItem(FAVORITES_STORAGE_KEY)
-      if (stored) {
-        favorites.value = JSON.parse(stored)
-      }
-    } catch (error) {
-      console.error('加载收藏失败:', error)
-      favorites.value = []
+  if (!process.client) return Promise.resolve()
+  if (initialization) return initialization
+  initialization = (async () => {
+    let result = await $fetch<FavoritesResponse>('/api/favorites')
+    const marker = 'news-favorites-migrated-user'
+    const stored = localStorage.getItem(FAVORITES_STORAGE_KEY)
+    if (!localStorage.getItem(marker) && stored) {
+      const legacy = JSON.parse(stored)
+      if (!Array.isArray(legacy)) throw new Error('旧收藏格式不正确')
+      if (legacy.length) result = await $fetch<FavoritesResponse>('/api/favorites', {
+        method: 'POST', body: { action: 'import', items: legacy }
+      })
+      // Retain the old local data as backup, but migrate it only once.
+      localStorage.setItem(marker, result.uid)
     }
-  }
+    favorites.value = result.favorites
+    ready = true
+  })().catch(error => {
+    initialization = undefined
+    toast.error('收藏加载失败，请检查网络和文稿权限后刷新页面')
+    console.error(error)
+  })
+  return initialization
 }
 
-// 保存收藏到本地存储 - SSR兼容版本
-const saveFavorites = () => {
-  // 只在客户端执行
-  if (process.client) {
+const saveFavorites = (operation: Record<string, unknown>) => {
+  pending = pending.then(async () => {
+    await loadFavorites()
+    if (!ready) throw new Error('收藏尚未加载')
+    await $fetch<FavoritesResponse>('/api/favorites', { method: 'POST', body: operation })
+  }).catch(async error => {
+    toast.error('收藏未保存到网盘，请检查网络或文稿权限后重试')
+    console.error(error)
+    try { favorites.value = (await $fetch<FavoritesResponse>('/api/favorites')).favorites } catch {}
+  })
+}
+
+if (process.client) {
+  window.addEventListener('focus', async () => {
+    if (!ready) return
     try {
-      localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(favorites.value))
-    } catch (error) {
-      console.error('保存收藏失败:', error)
-    }
-  }
+      await pending
+      favorites.value = (await $fetch<FavoritesResponse>('/api/favorites')).favorites
+    } catch { /* Keep the visible list if the network is unavailable. */ }
+  })
 }
 
 export function useFavorites() {
@@ -81,6 +109,7 @@ export function useFavorites() {
 
   // 添加到收藏
   const addToFavorites = (item: NewsItem, platform: string, platformTitle: string) => {
+    if (!ready) { toast.error('请等待收藏加载完成'); return false }
     if (isFavorited(item)) {
       return false // 已经收藏过了
     }
@@ -94,7 +123,7 @@ export function useFavorites() {
     }
 
     favorites.value.unshift(favoriteItem) // 添加到开头
-    saveFavorites()
+    saveFavorites({ action: 'add', item: favoriteItem })
     return true
   }
 
@@ -106,8 +135,8 @@ export function useFavorites() {
       (fav as FavoriteItem).url === item.url
     )
     if (index > -1) {
-      favorites.value.splice(index, 1)
-      saveFavorites()
+      const [removed] = favorites.value.splice(index, 1)
+      saveFavorites({ action: 'remove', key: entryKey(removed!) })
       return true
     }
     return false
@@ -115,6 +144,7 @@ export function useFavorites() {
 
   // 添加平台到收藏
   const addPlatformToFavorites = (platform: string, platformTitle: string) => {
+    if (!ready) { toast.error('请等待收藏加载完成'); return false }
     if (isPlatformFavorited(platform)) {
       return false // 已经收藏过了
     }
@@ -127,7 +157,7 @@ export function useFavorites() {
     }
 
     favorites.value.unshift(favoritePlatform) // 添加到开头
-    saveFavorites()
+    saveFavorites({ action: 'add', item: favoritePlatform })
     return true
   }
 
@@ -137,8 +167,8 @@ export function useFavorites() {
       fav.type === 'platform' && fav.platform === platform
     )
     if (index > -1) {
-      favorites.value.splice(index, 1)
-      saveFavorites()
+      const [removed] = favorites.value.splice(index, 1)
+      saveFavorites({ action: 'remove', key: entryKey(removed!) })
       return true
     }
     return false
@@ -164,8 +194,9 @@ export function useFavorites() {
 
   // 清空收藏
   const clearFavorites = () => {
+    if (!ready) { toast.error('请等待收藏加载完成'); return }
     favorites.value = []
-    saveFavorites()
+    saveFavorites({ action: 'clear' })
   }
 
   // 获取收藏列表（按添加时间排序）
