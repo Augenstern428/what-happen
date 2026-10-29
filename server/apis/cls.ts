@@ -75,7 +75,8 @@ export const telegraph = async (): Promise<Array<NewsItem>> => {
         const respStr = $("#__NEXT_DATA__").text();
         const resp = JSON.parse(respStr);
         const telegraphList: Telegram[] =
-            resp?.props?.initialState?.telegraph?.telegraphList || [];
+            resp?.props?.pageProps?.initialState?.telegraph?.telegraphList ?? resp?.props?.initialState?.telegraph?.telegraphList ?? [];
+        if (!telegraphList.length) throw new Error('财联社页面暂未提供电报列表');
         const list: Array<NewsItem> = telegraphList.map(
             ({
                  brief,
@@ -109,8 +110,7 @@ export const telegraph = async (): Promise<Array<NewsItem>> => {
 
         return list;
     } catch (error) {
-        console.log(error);
-        return [];
+        throw error;
     }
 };
 

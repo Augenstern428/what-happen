@@ -24,14 +24,12 @@ export const kugou = async () => {
             .replaceAll("\t", "")
             .replaceAll("\n", "");
         const url = $a.attr("href")
-        const title = $a.attr("title")
-        let info = title?.split("-");
-        if (info == undefined) {
-            return
-        }
+        const title = $a.attr("title")?.trim()
+        const info = title?.split(/\s*-\s*/, 2)
+        if (!url || !info || info.length < 2 || !info[0] || !info[1]) return
         res.push({
-            id: url!,
-            url: url!,
+            id: url,
+            url,
             title: info[1].trim(),
             extra: {
                 time: s,
@@ -42,6 +40,7 @@ export const kugou = async () => {
     // 更严格的类型安全版本
     const coverPromises = Object.entries(res).map(async ([key, value]) => {
         try {
+            if (!value.url) return {key, success: false};
             const info = (await axios.get(value.url)).data;
             const $ = cheerio.load(info);
             const $img = $(".albumImg img");

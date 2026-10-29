@@ -11,13 +11,18 @@ export const baidu = async () => {
         throw new Error("Baidu API is not set")
     }
     const rawData = await axios.get(BAIDU_API,{
+        timeout: 20000,
         headers:{
-            'User-Agent': genRandomUserAgent(),
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126.0.0.0 Safari/537.36',
         }
     })
-    const jsonStr = (rawData.data as string).match(/<!--s-data:(.*?)-->/)
-    const data: BaiduRes = JSON.parse(jsonStr![1]).data
-    return data.cards[0].content.filter(k => !k.isTop).map((k) => {
+    const jsonStr = typeof rawData.data === 'string' ? rawData.data.match(/<!--s-data:(.*?)-->/s) : null
+    if (!jsonStr?.[1]) throw new Error('Failed to find Baidu hot search data')
+    const parsed = JSON.parse(sanitizeJsonString(jsonStr[1]))
+    const data: BaiduRes = parsed.data?.data ?? parsed.data
+    const content = data?.cards?.find(card => Array.isArray(card.content))?.content
+    if (!content) throw new Error('Baidu hot search data has an unexpected format')
+    return content.filter(k => !k.isTop).map((k) => {
         return {
             id: k.rawUrl,
             title: k.word,
@@ -37,15 +42,18 @@ export const baiduTeleplay = async () => {
         throw new Error("Baidu Teleplay API is not set")
     }
     const rawData = await axios.get(BAIDU_TELEPLAY_API,{
+        timeout: 20000,
         headers:{
-            'User-Agent': genRandomUserAgent(),
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126.0.0.0 Safari/537.36',
         }
     });
     const jsonStr = (rawData.data as string).match(/<!--s-data:(.*?)-->/);
     if (!jsonStr) {
         throw new Error("Failed to parse Baidu Teleplay data");
     }
-    const data: BaiduTeleplayRes = JSON.parse(sanitizeJsonString(jsonStr[1])).data;
+    const parsed = JSON.parse(sanitizeJsonString(jsonStr[1]));
+    const data: BaiduTeleplayRes = parsed.data?.data ?? parsed.data;
+    if (!data?.cards?.[0]?.content) throw new Error("Baidu Teleplay data has an unexpected format");
     return data.cards[0].content.map((k) => {
         return {
             id: k.word,
@@ -55,7 +63,7 @@ export const baiduTeleplay = async () => {
                 desc: k.desc,
                 score: k.hotScore,
                 rank: k.index,
-                info: k.show.join("·"),
+                info: Array.isArray(k.show) ? k.show.join("·") : '',
                 icon: {
                     url: k.img
                 }
