@@ -2,7 +2,7 @@ import { ApiResponse } from '../../utils/response'
 import axios from 'axios';
 import sharp from 'sharp';
 import {createHash} from 'crypto';
-import {genRandomUserAgent} from '../../utils';
+
 // --- 缓存机制 ---
 // 只要服务器实例正在运行，这个缓存就会一直存在。
 const CACHE_TIME = 24 * 60 * 60 * 1000; // 24小时
@@ -60,9 +60,15 @@ export default defineEventHandler(async (event) => {
 
         // 4. 获取远程图片
         const decodedUrl = decodeURIComponent(url);
+        const imageHost = new URL(decodedUrl).hostname;
         const response = await axios.get(decodedUrl, {
             responseType: 'arraybuffer',
-            headers: { 'User-Agent': genRandomUserAgent() },
+            timeout: 15000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126.0.0.0 Safari/537.36',
+                ...(/(^|\.)doubanio\.com$/i.test(imageHost) ? { Referer: 'https://movie.douban.com/' } : {}),
+                ...(imageHost === 'cdnfile.sspai.com' ? { Referer: 'https://sspai.com/' } : {}),
+            },
         });
 
         const imageBuffer = Buffer.from(response.data);

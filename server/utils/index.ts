@@ -390,6 +390,7 @@ export const proxyPicture = (url: string, options: {
     fit?: 'cover' | 'contain' | 'fill' | 'inside' | 'outside';
 } = {}): string => {
     if (!url) return '';
+    if (url.startsWith('/api/proxy/image?')) return url;
 
     try {
         const urlObj = new URL(url);
@@ -400,8 +401,9 @@ export const proxyPicture = (url: string, options: {
         }
 
         // 构建代理URL的基础部分
-        const baseProxyUrl = `${process.env.PROXY_URL || 'http://localhost:3000'}/api/proxy/image`;
-        const proxyUrl = new URL(baseProxyUrl);
+        const proxyBase = process.env.PROXY_URL?.replace(/\/+$/, '');
+        // 默认使用同源路径，避免浏览器向用户设备的 localhost 请求图片。
+        const proxyUrl = new URL(`${proxyBase || 'http://proxy.internal'}/api/proxy/image`);
 
         // 添加原始图片URL
         proxyUrl.searchParams.set('url', encodeURIComponent(url));
@@ -426,7 +428,7 @@ export const proxyPicture = (url: string, options: {
             proxyUrl.searchParams.set('sign', sign);
         }
 
-        return proxyUrl.toString();
+        return proxyBase ? proxyUrl.toString() : `${proxyUrl.pathname}${proxyUrl.search}`;
     } catch (error) {
         console.error('Error creating proxy URL:', error);
         return url; // 如果出错则返回原始URL

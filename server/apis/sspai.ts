@@ -1,4 +1,5 @@
 import axios from "axios";
+import {proxyPicture} from '../utils';
 import {SSPAIRes} from "~~/server/types/shared";
 import {NewsItem} from "tools";
 
@@ -15,7 +16,7 @@ export const sspai = async () => {
             url: `https://sspai.com/post/${item.id}`,
             extra: {
                 icon: {
-                    url: `https://cdnfile.sspai.com${item.banner}`,
+                    url: item.banner ? proxyPicture(new URL(item.banner, 'https://cdnfile.sspai.com/').toString()) : '',
                     scale: 0.8,
                 },
                 author: item.author.nickname,
